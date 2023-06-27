@@ -31,16 +31,12 @@ public:
         {
             subject.ClearStatusRows();
             ctrl.ChangeMode(1);
-            //add x and y coordinates
-            std::string msg = "Current Mode: Edit    ";
-            msg += "Column = ";
-            msg+= std::to_string(subject.GetCursorX());
-            msg+= ", Row = ";
-            msg+= std::to_string(subject.GetCursorY());
 
-            subject.AddStatusRow(msg, "Press ESC for Command Mode", true);
+           //update the status bar from the controller to get the proper x and y axis relative to the model
+            ctrl.UpdateStatusBar();
+            //increment the session number, for undo/redo function
             ctrl.IncSession();
-            subject.Refresh();
+    
         }
 
         //else if ESC or CTRL A are pressed, change to command mode
@@ -48,14 +44,10 @@ public:
         {
             subject.ClearStatusRows();
             ctrl.ChangeMode(0);
-            std::string msg = "Current Mode: Command    ";
-            msg += "Column = ";
-            msg+= std::to_string(subject.GetCursorX());
-            msg+= ", Row = ";
-            msg+= std::to_string(subject.GetCursorY());
-
-            subject.AddStatusRow(msg, "Press i for Edit Mode", true);
-            subject.Refresh();
+            
+            //same as above
+            ctrl.UpdateStatusBar();
+         
         }
     }
 
@@ -64,8 +56,6 @@ public:
 private:
     ECTextViewImp &subject;
     Controller &ctrl;
-
-
 };
 
 
@@ -103,8 +93,6 @@ private:
     ECTextViewImp &subject;
     Controller &ctrl;
 };
-
-
 
 
 

@@ -371,18 +371,12 @@ public:
         //free the created command objects
         for(auto it = list_CMD.begin(); it != list_CMD.end(); it++)
         {
-            for(auto it2 = it->begin(); it2 != it->end(); it2++)
-            {
-                delete (*it2);
-            }
+           delete (*it);
         }
 
         for(auto it = list_undone.begin(); it != list_undone.end(); it++)
         {
-            for(auto it2 = it->begin(); it2 != it->end(); it2++)
-            {
-                delete (*it2);
-            }
+            delete (*it);
         }
 
     }
@@ -397,16 +391,8 @@ public:
         
             AddTextAt * add = new AddTextAt(model, c, x, y, col_lim);
             add->Execute();
-            //list_CMD.push_back(add);
-            
-            if(list_CMD.size() == curr_session)
-            {
-                list_CMD.emplace_back();
-                list_CMD.back().emplace_back(add);
-            }
-            else list_CMD[curr_session].emplace_back(add);
-            
-     
+            list_CMD.push_back(add);
+        
             MoveCurRight();
             AddView();
             WriteFile();
@@ -422,42 +408,53 @@ public:
 
         if(mode)
         {
-            //in the case that x is 0
-            //keep track o
-            std::vector<std::string> v1 = model.GetText();
-            int newXPos = v1[y-1].size();
-
-
-            int size_before = model.GetTextSize();
-            RemoveTextAt * rem = new RemoveTextAt(model, x, y, col_lim);
-            rem->Execute();
-            //list_CMD.push_back(rem);
-            
-            if(list_CMD.size() == curr_session)
-            {
-                list_CMD.emplace_back();
-                list_CMD.back().emplace_back(rem);
-            }
-            else list_CMD[curr_session].emplace_back(rem);
-
-        //get the new text from the model
-        //add to view
 
             std::vector<std::string> temp = model.GetText();
-        //view.Refresh();
-            //view.InitRows();
-            
-        
-            int size = temp.size();
-        //view.SetCursorX(temp[size].size());
-            //was y < 63 before
-            if(y > temp.size()-1 && y < view.GetRowNumInView())
+            /* In the case that x = 0, we need to keep track of the previous row's size before
+            modifying the view so that we can correctly place the x cursor
+            this also applies to wrapped text*/
+            int prev_row_len;
+            if(x == 0 && y != 0)
             {
-                MoveCurUp();
-
-                for(int i = 0; i < newXPos; i++) MoveCurRight();
-
+                prev_row_len = temp[y-1].size();
             }
+
+            //for wrapped text, we must move the cursor up if the cursor is at x = 0 before the character 
+            //gets deleted
+            //bool to adjust x value after deletion if we're deleting a part of a wrapped text
+            bool wrapped = false;
+            if(view.GetCursorX() == 0 && temp[y].size() >= col_lim-1)
+            {
+                view.SetCursorY(view.GetCursorY()-1);
+                view.SetCursorX(col_lim-1);
+                wrapped = true;
+            }
+            RemoveTextAt * rem = new RemoveTextAt(model, x, y, col_lim);
+            rem->Execute();
+            list_CMD.push_back(rem);
+            
+            if(wrapped)
+            {
+                x-=1;
+            }
+
+            if(x == 0)
+            {
+                if(prev_row_len == 0)
+                {
+                    view.SetCursorX(0);
+                    x = 0;
+                }
+                else 
+                {
+                    view.SetCursorX(prev_row_len);
+                    x = prev_row_len;
+                }
+                view.SetCursorY(view.GetCursorY()-1);
+                y -=1;
+                UpdateStatusBar();
+            }
+       
             else MoveCurLeft();
             AddView();
             WriteFile();
@@ -473,17 +470,17 @@ public:
         {
             CMD_Enter * enter = new CMD_Enter(model, x, y, col_lim);
             enter->Execute();
-            //list_CMD.push_back(enter);
-            if(list_CMD.size()  == curr_session)
-            {
-                list_CMD.emplace_back();
-                list_CMD.back().emplace_back(enter);
-            }
-            else list_CMD[curr_session].emplace_back(enter);
+            list_CMD.push_back(enter);
+    
+            std::vector<std::string> temp = model.GetText();
 
-            //move down if 
+            //need to adjust the y accordingly
+            //else pressing enter in 
             MoveCurDown();
             view.SetCursorX(0);
+            //made change below
+            x = 0;
+            UpdateStatusBar();
             AddView();
             WriteFile();
             view.Refresh();
@@ -497,20 +494,23 @@ public:
         std::vector<std::string> temp = model.GetText();
 
         //handle case for text wrapping
-        if(temp[y].size() > col_lim)
+        //was before >=col_lim
+        if(temp[y].size() >= col_lim-1)
         {
+        
             //if the cursor is at the end of the column limit, move the cursor down and set the cursor at the beginning
-            if(view.GetCursorX() == col_lim)
+            if(view.GetCursorX()+1 == col_lim-1)
             {
                 view.SetCursorY(view.GetCursorY()+1);
                 view.SetCursorX(0);
                 x+=1;
             }
+            //was x <= temp
             else if(x < temp[y].size())
             {
-                x+=1;
+            
                 view.SetCursorX(view.GetCursorX()+1);
-
+                x+=1;
                 //view.AddRow(std::to_string(view.GetCursorX()));
             }
         }
@@ -519,8 +519,8 @@ public:
         {
             if(x < temp[y].size())
             {
-                x +=1;
                 view.SetCursorX(view.GetCursorX()+1);
+                x+=1;
             }
         }
         UpdateStatusBar();
@@ -530,16 +530,17 @@ public:
     {
         std::vector<std::string> temp = model.GetText();
         //handle case for text wrapping
-        if(temp[y].size() > col_lim)
+        if(temp[y].size() >= col_lim-1)
         {
             //if currently in a wrapped row, we must move the cursor up to the last position
             if(view.GetCursorX() == 0 && x!= 0)
             {
                 view.SetCursorY(view.GetCursorY()-1);
-                view.SetCursorX(col_lim-1);
+                view.SetCursorX(col_lim-2);
                 x-=1;
+                
             }
-            else
+            else if (x!=0)
             {
                 view.SetCursorX(view.GetCursorX()-1);
                 x-=1;
@@ -553,6 +554,8 @@ public:
                 x-=1;
                 view.SetCursorX(view.GetCursorX()-1);
             }
+
+            
         }
         UpdateStatusBar();
     }
@@ -614,6 +617,7 @@ public:
                 view.SetCursorY(view.GetCursorY()-1);
             }
         }
+         
         UpdateStatusBar();
     }
 
@@ -621,8 +625,17 @@ public:
     void Correct_Cursor()
     {
         int num_rows = model.GetText().size();
-        int cur_x = view.GetCursorX();
-        int cur_y = view.GetCursorY();
+
+        //correct the y cursor if need be
+        
+
+        
+
+
+        /*
+        int num_rows = model.GetText().size();
+        int cur_x = x;
+        int cur_y = y;
 
         if(cur_y >= num_rows)
         {
@@ -637,6 +650,7 @@ public:
 
         x = cur_x;
         y = cur_y;
+        */
     }
 
     std::vector<std::string> Text_RV()
@@ -654,7 +668,7 @@ public:
 
 //**************************   UNDO/REDO   ***************************************************************************************************************************************************************************************************************
 //for both the undo/redo, we need to unexecute/execute the commands that are in the back of the vector of pointers to the command objects
-
+// we undo/redo all of the commands in the current session
     void Undo()
     {
         if(!mode)
@@ -664,28 +678,20 @@ public:
             if(list_CMD.empty()) { return;}
             //undo commands from the last session
             //go to the most recent session
-            auto i = list_CMD.rbegin();
-            //loop through the session and unexecute the most recent command           
-            for(auto j = i->rbegin(); j != i->rend(); j++)
+            else
             {
-                (*j)->UnExecute();
-                //correct the cursor postion after each undo
-                Correct_Cursor();
-                if(list_undone.size() == index_undo)
-                {
-                    list_undone.emplace_back();
-                    list_undone.back().emplace_back(*j);
-                }
-                else list_undone[index_undo].push_back(*j);
+                auto undo = list_CMD.back();
+                undo->UnExecute();
+                //push back the command to the redo list
+                list_undone.push_back(undo);
+                //need to erase the last command from the list of commands
+                list_CMD.pop_back();
             }
-           
-            index_undo++;
-            curr_session--;
     
             //remove the last session from the list
-            list_CMD.pop_back();
             AddView();
-            //Correct_Cursor();
+            Correct_Cursor();
+            UpdateStatusBar();
             WriteFile();
         }
     }
@@ -698,25 +704,17 @@ public:
             index_redo = list_CMD.size();
             if(list_undone.empty()) {return;}
             
-            auto i = list_undone.rbegin();
-            for(auto j = i->rbegin(); j != i->rend(); j++)
+            else
             {
-                (*j)->Execute();
-                Correct_Cursor();
-                if(list_CMD.size() == index_redo)
-                {
-                    list_CMD.emplace_back();
-                    list_CMD.back().emplace_back(*j);
-                }
-                else list_CMD[index_redo].push_back(*j);
+                auto redo = list_undone.back();
+                redo->Execute();
+                list_CMD.push_back(redo);
+                list_undone.pop_back();
             }
-            index_redo++;
-            curr_session--;
         
-
-            list_undone.pop_back();            
             AddView();
-            //Correct_Cursor();
+            Correct_Cursor();
+            UpdateStatusBar();
             WriteFile();
         }
 
@@ -850,7 +848,7 @@ public:
     
         for(int i = 0; i < num_rows; i++)
         {
-            if(temp[i].size() > col_lim)
+            if(temp[i].size() > col_lim-1)
             {
                 WrapText(temp[i]);
             }
@@ -893,13 +891,13 @@ private:
     //by default its 0
     bool mode;
 
-    //
+    //keep track of the commands to undo/redo within their respective lists 
     int index_undo;
     int index_redo;
 
     //maintain a list of the commands to then delete them
-    std::vector<std::vector<Command *>> list_CMD;
-    std::vector<std::vector<Command *>> list_undone;
+    std::vector<Command *> list_CMD;
+    std::vector<Command *> list_undone;
 
     //keep track of the coordinates in relation to the model
     int x,y;
@@ -917,3 +915,50 @@ private:
 //*********************************************************************************************
 
 #endif
+
+/*
+
+UNDO
+  index_undo = list_undone.size();
+            
+            if(list_CMD.empty()) { return;}
+            //undo commands from the last session
+            //go to the most recent session
+            auto i = list_CMD.rbegin();
+            //loop through the session and unexecute the most recent command           
+            for(auto j = i->rbegin(); j != i->rend(); j++)
+            {
+                (*j)->UnExecute();
+                //correct the cursor postion after each undo
+                Correct_Cursor();
+                if(list_undone.size() == index_undo)
+                {
+                    list_undone.emplace_back();
+                    list_undone.back().emplace_back(*j);
+                }
+                else list_undone[index_undo].push_back(*j);
+            }
+           
+            index_undo++;
+            curr_session--;
+    
+            //remove the last session from the list
+            list_CMD.pop_back();
+            AddView();
+            Correct_Cursor();
+            UpdateStatusBar();
+            WriteFile();
+
+*/
+
+
+/*
+if(y > temp.size()-1 && y < view.GetRowNumInView())
+            {
+                MoveCurUp();
+
+                for(int i = 0; i < newXPos; i++) MoveCurRight();
+                view.AddRow("hellasdas");
+            }
+
+*/
