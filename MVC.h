@@ -208,19 +208,19 @@ class AddTextAt: public Command
 {
 public:
     
-    AddTextAt(Model &m, char ch, int x, int y, int b): model(m), c(ch), pX(x), pY(y), bound(b){}
+    AddTextAt(Model &m, char ch, int x, int y, int b): Command(x,y) , model(m), c(ch), bound(b){}
     ~AddTextAt(){}
 
     void Execute()
     {
         //wait until cursor is done
-        model.AddCharAt(c, pX, pY, bound);
+        model.AddCharAt(c, x, y, bound);
         
     }
     void UnExecute()
     {
         //basically undo the command
-        model.RemoveCharAt(pX+1, pY, bound);
+        model.RemoveCharAt(x+1, y, bound);
     }
 
 
@@ -229,8 +229,6 @@ private:
     Model &model;
     //char to add to the view
     char c;
-    int pX;
-    int pY;
     int bound;
 };
 
@@ -240,54 +238,53 @@ private:
 class RemoveTextAt: public Command
 {
 public:
-    RemoveTextAt(Model &m, int x, int y, int b): model(m), pX(x), pY(y), bound(b){}
+    RemoveTextAt(Model &m, int x, int y, int b):  Command( x, y ),  model(m), bound(b){}
     ~RemoveTextAt(){}
 
     void Execute()
     {
         //if x is is zero, add the current row to the removed chars
-        if(pX == 0 && pY != 0)
-        {   old_len = model.GetRow(pY-1).size();
-            std::string temp = model.GetRow(pY);
+        if(x == 0 && y != 0)
+        {   old_len = model.GetRow(y-1).size();
+            std::string temp = model.GetRow(y);
             for(auto it: temp) removed_chars.push_back(it);
         }
-        else removed_chars.push_back(model.GetCharAt(pX-1,pY));
+        else removed_chars.push_back(model.GetCharAt(x-1,y));
 
-        model.RemoveCharAt(pX, pY, bound);
+        model.RemoveCharAt(x, y, bound);
     }
 
     void UnExecute()
     {
         //basically undo the command 
         //if pX is zero, un merge the row
-        if(pX == 0){
+        if(x == 0){
           
             for(int i = 0; i < removed_chars.size(); i++)
             {
                 int j = old_len+1;
-                model.RemoveCharAt(j, pY-1, bound);
+                model.RemoveCharAt(j, y-1, bound);
                 j++;
             }
             
-            model.AddRowAt(pY);
+            model.AddRowAt(y);
             for(int i = 0; i < removed_chars.size(); i++)
             {
-                model.AddCharAt(removed_chars[i], i , pY, bound);
+                model.AddCharAt(removed_chars[i], i , y, bound);
             }  
             removed_chars.clear();
         }
         else {
         char c  = removed_chars.back();
         //was pX-1
-        model.AddCharAt(c, pX-1, pY, bound);
+        model.AddCharAt(c, x-1, y, bound);
         removed_chars.pop_back();
         }
     }
 
 private:
     Model &model;
-    int pX;
-    int pY;
+  
     int bound;
     //keep a list of the chars removed from the model
     std::vector<char> removed_chars;
@@ -303,7 +300,7 @@ class CMD_Enter: public Command
 {
 
 public: 
-    CMD_Enter(Model &m, int posX, int posY, int b) : model(m), x(posX), y(posY), bound(b) {}
+    CMD_Enter(Model &m, int posX, int posY, int b) :  Command(posX, posY), model(m), bound(b) {}
     ~CMD_Enter(){}
 
     void Execute()
@@ -336,10 +333,11 @@ public:
         model.SetText(temp);
     }
 
+    //methods to return the coordinates for redo/undo cursor correction
+
+
 private:
     Model &model;
-    int x;
-    int y;
     int bound;
     //keep track of the text that was removed from a row
     std::string removed_text;
@@ -427,16 +425,11 @@ public:
             {
                 view.SetCursorY(view.GetCursorY()-1);
                 view.SetCursorX(col_lim-1);
-                wrapped = true;
             }
             RemoveTextAt * rem = new RemoveTextAt(model, x, y, col_lim);
             rem->Execute();
             list_CMD.push_back(rem);
-            
-            if(wrapped)
-            {
-                x-=1;
-            }
+        
 
             if(x == 0)
             {
@@ -624,33 +617,18 @@ public:
     //correct the cursor when doing 
     void Correct_Cursor()
     {
+        std::vector<std::string> temp = model.GetText();
+
         int num_rows = model.GetText().size();
-
-        //correct the y cursor if need be
-        
-
-        
-
-
-        /*
-        int num_rows = model.GetText().size();
-        int cur_x = x;
-        int cur_y = y;
-
-        if(cur_y >= num_rows)
+        //for now, if the current cursor position is invalid, set it to the origin
+        if( view.GetCursorX() > temp[y].size() || view.GetCursorY() > temp.size())
         {
-            cur_y = num_rows-1;
+            x = 0;
+            y = 0;
+            view.SetCursorX(0);
+            view.SetCursorY(0);
         }
-        int len = model.GetText()[cur_y].length();
 
-        if(cur_x > len) cur_x = len;
-
-        view.SetCursorX(cur_x);
-        view.SetCursorY(cur_y);
-
-        x = cur_x;
-        y = cur_y;
-        */
     }
 
     std::vector<std::string> Text_RV()
@@ -844,11 +822,11 @@ public:
         view.ClearColor();
         std::vector<std::string> temp = model.GetText();
 
-        int num_rows = std::min(row_lim, static_cast<int>(temp.size()));
+        int num_rows = std::min(row_lim-1, static_cast<int>(temp.size()));
     
-        for(int i = 0; i < num_rows; i++)
+        for(int i = 0; i < num_rows-1; i++)
         {
-            if(temp[i].size() > col_lim-1)
+            if(temp[i].size() >= col_lim-1)
             {
                 WrapText(temp[i]);
             }

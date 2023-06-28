@@ -16,9 +16,17 @@ class Command
 {
 
 public:
-    virtual ~Command(){}
+    virtual ~Command(){}  
+    Command(int x, int y): x(x), y(y) {}
     virtual void Execute() = 0;
     virtual void UnExecute() = 0;
+
+    int GetX() const { return x; }
+    int GetY() const { return y; }
+
+protected:
+    int x;
+    int y;
 };
 
 

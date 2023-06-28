@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++11
 
 SRCS = ECTextViewImp.cpp ECEditorTest.cpp
 OBJS = $(SRCS:.cpp=.o)
-TARGET = myeditor
+TARGET = editor
 
 all: $(TARGET)
 
