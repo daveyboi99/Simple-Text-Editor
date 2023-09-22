@@ -362,6 +362,8 @@ public:
 
         x = view.GetCursorX();
         y = view.GetCursorY();
+
+        rows_past = 0;
      
     }
     ~Controller()
@@ -392,6 +394,8 @@ public:
             list_CMD.push_back(add);
         
             MoveCurRight();
+
+            //have to update view differently if we past the row limit in relation to the view
             AddView();
             WriteFile();
             view.Refresh();
@@ -467,14 +471,19 @@ public:
     
             std::vector<std::string> temp = model.GetText();
 
-            //need to adjust the y accordingly
-            //else pressing enter in 
+        
+            //move the cursor down
+            //have to update view in a different way depending on if y cursor pos is at the row limit
             MoveCurDown();
+
             view.SetCursorX(0);
             //made change below
             x = 0;
-            UpdateStatusBar();
+        
+             //have to update view in a different way depending on if y cursor pos is at the row limit
             AddView();
+
+            UpdateStatusBar();
             WriteFile();
             view.Refresh();
         }
@@ -557,6 +566,7 @@ public:
     {
         //just move down a row
         std::vector<std::string> temp = model.GetText();
+        //regular case of going down a row
         if(view.GetCursorY() < row_lim && y < temp.size()-1)
         {
             //case of wrapped text
@@ -582,13 +592,24 @@ public:
                 y+=1; 
             }
         }
+        
+        //case where cursor is at the view row limit and there is more text that can be displayed
+        
+        else if (view.GetCursorY() == row_lim && y != temp.size()-1)
+        {
+            rows_past++;
+            AddView();
+            y+=1;
+
+        }
+        
         UpdateStatusBar();
     }
 
     void MoveCurUp()
     {   
         std::vector<std::string> temp = model.GetText();
-        if(y>0)
+        if(y>0 && view.GetCursorY() != 0)
         {
             //in case of text wrapping
             if(temp[y-1].size() > col_lim)
@@ -609,6 +630,18 @@ public:
                 y-=1;
                 view.SetCursorY(view.GetCursorY()-1);
             }
+        }
+
+        //case where the cursor is at the beginning of the view row limit but the actual y value isnt 
+
+
+        else if (view.GetCursorY() == 0 && y != 0)
+        {
+        
+            rows_past--;
+            AddView();
+            y-=1;
+        
         }
          
         UpdateStatusBar();
@@ -822,9 +855,9 @@ public:
         view.ClearColor();
         std::vector<std::string> temp = model.GetText();
 
-        int num_rows = std::min(row_lim-1, static_cast<int>(temp.size()));
-    
-        for(int i = 0; i < num_rows-1; i++)
+        int num_rows = std::min(view.GetRowNumInView(), static_cast<int>(temp.size()));
+        num_rows -= 1;
+        for(int i = rows_past; i < num_rows + rows_past; ++i)
         {
             if(temp[i].size() >= col_lim-1)
             {
@@ -838,6 +871,8 @@ public:
         view.Refresh();
 
     }
+
+
 
     //function to add to the file after modifying the model and view
     void WriteFile()
@@ -873,7 +908,7 @@ private:
     int index_undo;
     int index_redo;
 
-    //maintain a list of the commands to then delete them
+    //maintain a list of the commands to then de lete them
     std::vector<Command *> list_CMD;
     std::vector<Command *> list_undone;
 
@@ -884,8 +919,13 @@ private:
     int curr_session;
 
     //row and column limit of the window
-    const int row_lim = view.GetRowNumInView();
+    const int row_lim = view.GetRowNumInView() -2;
     const int col_lim = view.GetColNumInView();
+
+    //keep track of the first x rows to diplay in the view for large files
+    int rows_past = 0;
+
+    
     
 
     
@@ -939,4 +979,56 @@ if(y > temp.size()-1 && y < view.GetRowNumInView())
                 view.AddRow("hellasdas");
             }
 
-*/
+//helper function to move/down for large files and update the view accordingly
+
+    void MovePastDown()
+    {
+        view.InitRows();
+        view.ClearColor();
+        
+        std::vector<std::string> temp = model.GetText();
+        //go one past the first row
+
+        int num_rows = std::min(view.GetRowNumInView()-1, static_cast<int>(temp.size()));
+        
+        for(int i = rows_past ; i <= num_rows + rows_past; i++)
+        {
+            if(temp[i].size() >= col_lim-1)
+            {
+                WrapText(temp[i]);
+            }
+            else view.AddRow(temp[i]);
+        }
+    
+        Highlight();
+        view.Refresh();
+        
+    }
+
+
+    void MovePastViewLim()
+    {
+        view.InitRows();
+        view.ClearColor();
+        
+        std::vector<std::string> temp = model.GetText();
+        //go one past the first row
+
+        int num_rows = std::min(view.GetRowNumInView()-1, static_cast<int>(temp.size()));
+        
+        for(int i = rows_past ; i <= num_rows + rows_past; i++)
+        {
+            if(temp[i].size() >= col_lim-1)
+            {
+                WrapText(temp[i]);
+            }
+            else view.AddRow(temp[i]);
+        }
+    
+        Highlight();
+        view.Refresh();
+        
+    }
+
+
+    */
